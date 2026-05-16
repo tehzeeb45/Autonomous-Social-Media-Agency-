@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Environment variables (API keys)
+.env
+
+# Build output
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Approved posts (generated at runtime)
+approved_posts.txt

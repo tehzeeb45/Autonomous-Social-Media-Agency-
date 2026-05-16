@@ -1,0 +1,16 @@
+{
+  "name": "autonomous-social-media-agency",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "prestart": "npx -y kill-port 3000 5000",
+    "start": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "cd backend && py -3.12 server.py",
+    "frontend": "cd my-app && npm start",
+    "install-all": "cd backend && npm install && cd ../my-app && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
