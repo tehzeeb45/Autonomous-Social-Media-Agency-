@@ -13,9 +13,9 @@ async function runAgentPipeline(topic, onLog, onResult) {
   await sleep(300);
   onLog("scout", "🤖 Agent 1: Trend Scout initialized");
   onLog("scout", "🎯 Goal: Find 3 trending stories from live internet");
-  onLog("scout", "🛠 Tool: Tavily Search API + OpenAI Fallback");
+  onLog("scout", "🛠 Tool: DuckDuckGo Search (real live web)");
   await sleep(400);
-  onLog("scout", "🔍 Searching live web...");
+  onLog("scout", "🔍 Searching DuckDuckGo for latest news...");
 
   let res, data;
 
@@ -38,8 +38,10 @@ async function runAgentPipeline(topic, onLog, onResult) {
   }
 
   if (!res.ok) {
-    onLog("error", `❌ Server Error: ${data.error}`);
-    throw new Error(data.error);
+    const errMsg = data.error || "Server error occurred";
+    const errType = data.error_type || "generic";
+    onLog("error", `❌ ${errType === "unknown_person" ? "👤 Person not found" : "Server Error"}: ${errMsg}`);
+    throw Object.assign(new Error(errMsg), { errorType: errType });
   }
 
   const { stories, posts } = data;
@@ -202,6 +204,8 @@ export default function App() {
   const [approvedMap, setApprovedMap] = useState({});
   const [savedCount, setSavedCount] = useState(0);
   const [editState, setEditState] = useState({ open: false });
+  const [errorMsg, setErrorMsg] = useState("");
+  const [errorType, setErrorType] = useState("");
   const logRef = useRef(null);
 
   useEffect(() => {
@@ -221,6 +225,8 @@ export default function App() {
     setPosts([]);
     setApprovedMap({});
     setSavedCount(0);
+    setErrorMsg("");
+    setErrorType("");
     try {
       await runAgentPipeline(topic.trim(), addLog, (s, p) => {
         setStories(s);
@@ -228,7 +234,8 @@ export default function App() {
         setPhase("done");
       });
     } catch (e) {
-      addLog("error", `❌ ${e.message}`);
+      setErrorMsg(e.message);
+      setErrorType(e.errorType || "generic");
       setPhase("error");
     }
   };
@@ -429,6 +436,29 @@ export default function App() {
                 Enter a topic above, hit <strong>Launch Agents</strong> — watch AI research trends and write viral content automatically.
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Error Banner */}
+        {phase === "error" && errorMsg && (
+          <div className="fade-up" style={{ background: errorType === "unknown_person" ? "#FFFBEB" : "#FEF2F2", border: `1.5px solid ${errorType === "unknown_person" ? "#FDE68A" : "#FECACA"}`, borderRadius: 16, padding: "28px 32px", textAlign: "center", marginTop: 8 }}>
+            <div style={{ fontSize: 48, marginBottom: 14 }}>{errorType === "unknown_person" ? "👤" : "❌"}</div>
+            <div style={{ fontWeight: 800, fontSize: 18, color: errorType === "unknown_person" ? "#92400E" : "#991B1B", marginBottom: 10 }}>
+              {errorType === "unknown_person" ? "Person Not Found in Public News" : "Something went wrong"}
+            </div>
+            <div style={{ fontSize: 14, color: errorType === "unknown_person" ? "#78350F" : "#7F1D1D", maxWidth: 520, margin: "0 auto", lineHeight: 1.75 }}>
+              {errorMsg}
+            </div>
+            {errorType === "unknown_person" && (
+              <div style={{ marginTop: 20, display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                {["Gaming Tech", "Sustainable Fashion", "Elon Musk", "AI & Machine Learning", "Taylor Swift"].map((s) => (
+                  <button key={s} onClick={() => { setPhase("idle"); setErrorMsg(""); setTopic(s); }}
+                    style={{ padding: "6px 14px", borderRadius: 99, border: "1.5px solid #FCD34D", background: "#FEF3C7", color: "#92400E", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

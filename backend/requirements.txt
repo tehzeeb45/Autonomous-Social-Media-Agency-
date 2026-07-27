@@ -5,3 +5,5 @@ langchain-groq==0.3.3
 langchain-community==0.3.24
 duckduckgo-search==7.5.3
 python-dotenv==1.1.0
+crewai>=0.80.0
+crewai-tools>=0.14.0

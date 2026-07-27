@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const { search } = require('duck-duck-scrape');
 require('dotenv').config();
 
 const app = express();
@@ -49,28 +50,45 @@ async function callLLM(systemPrompt, userPrompt, maxTokens = 2000) {
 
 // ═══════════════════════════════════════════════════════
 //   AGENT 1: TREND SCOUT
-//   Tool: Groq LLM (Llama 3.3 70B)
+//   Tool: DuckDuckGo Search (real live web search)
 // ═══════════════════════════════════════════════════════
 class TrendScoutAgent {
   constructor() {
     this.name = "Trend Scout";
-    this.goal = "Find 3 trending news stories";
+    this.goal = "Find 3 trending news stories from live internet";
+  }
+
+  // 🔍 TOOL: Real DuckDuckGo web search
+  async searchWeb(topic) {
+    console.log(`🔍 [Trend Scout] DuckDuckGo search: "${topic} latest news 2025"...`);
+    try {
+      const results = await search(`${topic} latest news 2025`, { safeSearch: 'OFF' });
+      const snippets = results.results
+        .slice(0, 8)
+        .map((r, i) => `[${i + 1}] ${r.title}\nSource: ${r.url}\n${r.description}`)
+        .join('\n\n');
+      console.log(`✅ Got ${results.results.length} search results from DuckDuckGo`);
+      return snippets;
+    } catch (err) {
+      console.log(`⚠️  DuckDuckGo search failed: ${err.message}`);
+      return null;
+    }
   }
 
   async findStories(topic) {
-    console.log(`🔍 [Trend Scout] Searching for "${topic}" trends...`);
+    // Step 1: Real live web search
+    const searchResults = await this.searchWeb(topic);
+
+    // Step 2: LLM extracts structured stories from real results
+    console.log(`🧠 [Trend Scout] LLM extracting stories from search results...`);
+
+    const userPrompt = searchResults
+      ? `Based on these LIVE search results about "${topic}", extract 3 trending news stories:\n\n${searchResults}\n\nReturn ONLY this JSON:\n{"stories":[\n  {"headline":"exact headline from results","source":"real publication name","summary":"2-3 sentence summary","bullets":["fact 1","fact 2","fact 3"]},\n  {"headline":"...","source":"...","summary":"...","bullets":["...","...","..."]},\n  {"headline":"...","source":"...","summary":"...","bullets":["...","...","..."]}\n]}`
+      : `Generate 3 realistic trending news stories about "${topic}" from 2025.\nReturn ONLY this JSON:\n{"stories":[\n  {"headline":"specific headline","source":"real publication name","summary":"2-3 sentence summary","bullets":["fact 1","fact 2","fact 3"]},\n  {"headline":"...","source":"...","summary":"...","bullets":["...","...","..."]},\n  {"headline":"...","source":"...","summary":"...","bullets":["...","...","..."]}\n]}`;
+
     const raw = await callLLM(
-      `You are a Trend Scout AI. You have knowledge of real world news and trends.
-       Return ONLY raw JSON, no markdown, no explanation.`,
-      `Generate 3 realistic and specific trending news stories about "${topic}" from 2025.
-       Make them detailed, believable, and based on real industry trends.
-       
-       Return ONLY this JSON:
-       {"stories":[
-         {"headline":"specific headline","source":"real publication name","summary":"2-3 sentence summary","bullets":["specific fact 1","specific fact 2","specific fact 3"]},
-         {"headline":"...","source":"...","summary":"...","bullets":["...","...","..."]},
-         {"headline":"...","source":"...","summary":"...","bullets":["...","...","..."]}
-       ]}`,
+      `You are a Trend Scout AI. Extract trending stories from search results and return ONLY raw JSON, no markdown.`,
+      userPrompt,
       1500
     );
     return raw;
@@ -80,6 +98,7 @@ class TrendScoutAgent {
     console.log(`\n${'═'.repeat(50)}`);
     console.log(`🤖 AGENT: ${this.name}`);
     console.log(`🎯 GOAL : ${this.goal}`);
+    console.log(`🛠  TOOL : DuckDuckGo Search`);
     console.log(`${'═'.repeat(50)}`);
     return await this.findStories(topic);
   }
@@ -263,9 +282,44 @@ app.post('/api/pipeline', async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════
+//   SAVE APPROVED POST
+// ═══════════════════════════════════════════════════════
+const fs   = require('fs');
+const path = require('path');
+
+app.post('/api/save', (req, res) => {
+  const { topic, storyIdx, platform, text, at } = req.body;
+  const filepath = path.join(__dirname, 'approved_posts.txt');
+
+  const line = [
+    '',
+    '==================================================',
+    `APPROVED POST — ${new Date(at || Date.now()).toLocaleString()}`,
+    '==================================================',
+    `Topic    : ${topic || 'N/A'}`,
+    `Story #  : ${(storyIdx ?? 0) + 1}`,
+    `Platform : ${platform || 'N/A'}`,
+    '--------------------------------------------------',
+    text || '',
+    '==================================================',
+    '',
+  ].join('\n');
+
+  try {
+    fs.appendFileSync(filepath, line, 'utf8');
+    console.log(`💾 Post saved → approved_posts.txt`);
+    res.json({ success: true, message: 'Post saved to approved_posts.txt' });
+  } catch (err) {
+    console.error('❌ Save error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(5000, () => {
   console.log('\n✅ Server running on port 5000');
-  console.log('🔍 Agent 1: Trend Scout    (Groq Llama 3.3 70B)');
+  console.log('🔍 Agent 1: Trend Scout    (DuckDuckGo Search + Groq Llama 3.3)');
   console.log('✍️  Agent 2: Content Creator (Groq Llama 3.3 70B)');
-  console.log('🔁 Self-Correction: Twitter 280-char active\n');
+  console.log('🔁 Self-Correction: Twitter 280-char active');
+  console.log('💾 /api/save → approved_posts.txt\n');
 });
