@@ -294,9 +294,20 @@ def pipeline():
         # ── STEP 0: Analyze topic + pre-search ─────────────────────
         topic_type, has_real_news, pre_search = analyze_topic(topic)
 
-        # Block if: unknown person name OR person with no real news
-        if topic_type == "UNKNOWN_PERSON" or (topic_type == "FAMOUS_PERSON" and not has_real_news):
+        # Determine if search actually worked
+        search_worked = pre_search and "ratelimit" not in pre_search.lower() and len(pre_search.strip()) > 50
+
+        # Block if: unknown person name
+        # OR: famous person with no real news AND search actually worked (not rate-limited)
+        if topic_type == "UNKNOWN_PERSON":
             print(f"⚠️  Blocked: type={topic_type}, has_news={has_real_news}")
+            return jsonify({
+                "error": f"No public news found for '{topic}'. Please try an industry topic like 'Gaming Tech' or a well-known public figure like 'Elon Musk'.",
+                "error_type": "unknown_person"
+            }), 400
+
+        if topic_type == "FAMOUS_PERSON" and not has_real_news and search_worked:
+            print(f"⚠️  Blocked: type={topic_type}, has_news={has_real_news}, search_worked={search_worked}")
             return jsonify({
                 "error": f"No public news found for '{topic}'. Please try an industry topic like 'Gaming Tech' or a well-known public figure like 'Elon Musk'.",
                 "error_type": "unknown_person"
